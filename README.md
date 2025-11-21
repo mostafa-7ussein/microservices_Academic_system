@@ -6,7 +6,7 @@ A microservices architecture project demonstrating event-driven communication us
 
 This project implements a microservices architecture with the following components:
 
-- **Instructor Service** (Port 8080): Handles course creation/deletion requests and publishes events to Kafka
+- **Instructor Service** (Port 8080): Handles course creation/deletion requests, publishes events to Kafka, and can directly delete courses from the database
 - **Student Service** (Port 8081): Consumes events from Kafka and manages course data in PostgreSQL
 - **Kafka**: Message broker for asynchronous communication between services
 - **Zookeeper**: Coordinates and manages Kafka cluster
@@ -14,14 +14,25 @@ This project implements a microservices architecture with the following componen
 
 ### Data Flow
 
+**Adding a Course:**
 ```
 Client → Instructor Service → Kafka → Student Service → PostgreSQL
+```
+
+**Deleting a Course:**
+```
+Client → Instructor Service → PostgreSQL (direct delete)
+                ↓
+            Kafka (notification)
+                ↓
+        Student Service (consumes notification)
 ```
 
 ## 🚀 Features
 
 - Event-driven architecture using Kafka
 - Asynchronous communication between microservices
+- Direct database access for delete operations (Instructor Service)
 - RESTful API endpoints
 - PostgreSQL database integration
 - Docker containerization
@@ -36,8 +47,8 @@ Client → Instructor Service → Kafka → Student Service → PostgreSQL
 
 1. **Clone the repository:**
    ```bash
-   git clone (https://github.com/mostafa-7ussein/microservices_Academic_system.git)
-   cd microservices_project-main
+   git clone https://github.com/mostafa-7ussein/microservices_Academic_system.git
+   cd microservices_Academic_system
    ```
 
 2. **Start all services:**
@@ -69,6 +80,9 @@ Content-Type: application/json
   "name": "Node.js Basics"
 }
 ```
+**Response:** `"message sent"`
+
+**Flow:** Instructor Service → Kafka → Student Service → PostgreSQL
 
 #### Delete Course
 ```http
@@ -80,6 +94,9 @@ Content-Type: application/json
   "name": "Node.js Basics"
 }
 ```
+**Response:** `"Course deleted successfully"` or `"Course not found"`
+
+**Flow:** Instructor Service → PostgreSQL (direct delete) → Kafka (notification) → Student Service
 
 ### Student Service (Port 8081)
 
@@ -109,6 +126,13 @@ curl -X POST http://localhost:8080/add-course \
   -d '{"id": 1, "name": "Node.js Basics"}'
 ```
 
+**Delete a course:**
+```bash
+curl -X DELETE http://localhost:8080/delete-course \
+  -H "Content-Type: application/json" \
+  -d '{"id": 1, "name": "Node.js Basics"}'
+```
+
 **Get all courses:**
 ```bash
 curl http://localhost:8081/get-all-courses
@@ -119,6 +143,11 @@ curl http://localhost:8081/get-all-courses
 **Add a course:**
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8080/add-course" -Method POST -ContentType "application/json" -Body '{"id": 1, "name": "Node.js Basics"}'
+```
+
+**Delete a course:**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8080/delete-course" -Method DELETE -ContentType "application/json" -Body '{"id": 1, "name": "Node.js Basics"}'
 ```
 
 **Get all courses:**
@@ -153,8 +182,11 @@ SELECT * FROM courses;
 ```
 microservices_project-main/
 ├── docker-compose.yml
+├── README.md
+├── .gitignore
 ├── instructor/
 │   ├── controllers/
+│   │   ├── dbController.js
 │   │   ├── instructorController.js
 │   │   └── kafkaProducer.js
 │   ├── models/
@@ -198,24 +230,39 @@ microservices_project-main/
 - **Port:** 8080
 - **Responsibilities:**
   - Receive course creation/deletion requests
-  - Publish events to Kafka topic
-  - No direct database access
+  - Publish events to Kafka topic for course creation
+  - Direct database access for course deletion
+  - Send notifications to Kafka after successful deletion
+- **Database Access:** Yes (for delete operations)
+- **Dependencies:** Express, Kafka-node, Sequelize, PostgreSQL
 
 ### Student Service
 
 - **Port:** 8081
 - **Responsibilities:**
   - Consume events from Kafka
-  - Manage course data in PostgreSQL
+  - Manage course data in PostgreSQL (add operations)
   - Provide read endpoints for courses
+  - Process delete notifications from Kafka
+- **Database Access:** Yes (full CRUD operations)
 
 ## 🔄 How It Works
 
-1. Client sends a request to Instructor Service to add/delete a course
+### Adding a Course
+
+1. Client sends a request to Instructor Service to add a course
 2. Instructor Service publishes the event to Kafka topic `topic1`
 3. Student Service consumes the event from Kafka
-4. Student Service processes the event and updates PostgreSQL database
+4. Student Service processes the event and saves it to PostgreSQL database
 5. Client can read courses directly from Student Service
+
+### Deleting a Course
+
+1. Client sends a request to Instructor Service to delete a course
+2. Instructor Service directly deletes the course from PostgreSQL database
+3. Instructor Service publishes a delete notification to Kafka topic `topic1`
+4. Student Service consumes the notification from Kafka
+5. Student Service processes the notification (course already deleted by Instructor Service)
 
 ## 🛑 Stopping Services
 
@@ -236,6 +283,7 @@ docker compose down -v
 - `PORT=8080`
 - `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
 - `KAFKA_TOPIC=topic1`
+- `POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres`
 
 ### Student Service
 - `PORT=8081`
@@ -272,6 +320,15 @@ docker compose logs kafka
 docker compose ps kafka
 ```
 
+### Rebuild services after code changes
+```bash
+# Rebuild a specific service
+docker compose build --no-cache [service-name]
+
+# Restart the service
+docker compose up -d [service-name]
+```
+
 ## 📄 License
 
 ISC
@@ -279,3 +336,7 @@ ISC
 ## 👥 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🔗 Repository
+
+[GitHub Repository](https://github.com/mostafa-7ussein/microservices_Academic_system)
