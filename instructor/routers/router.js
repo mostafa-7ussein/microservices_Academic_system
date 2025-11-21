@@ -8,8 +8,8 @@ router.post("/add-course", (req, res) => {
   return instructorController.sendCourse(res, req.body, "add");
 });
 
-router.delete("/delete-course", (req, res) => {
-  return instructorController.sendCourse(res, req.body, "delete");
+router.delete("/delete-course", async (req, res) => {
+  return await instructorController.deleteCourse(res, req.body);
 });
 
 export default router;

@@ -39,8 +39,10 @@ services:
       - PORT=8080
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KAFKA_TOPIC=topic1
+      - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres
     depends_on:
       - kafka
+      - postgres
   student:
     container_name: student
     build: ./student
